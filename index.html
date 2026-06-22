@@ -1,56 +1,19 @@
 <!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Angela AI Guide</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <style>
-        body {
-            background-color: #87CEEB; /* Небесно-голубой фон */
-            font-family: sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-            color: white;
-        }
-        .btn {
-            background-color: #ffffff;
-            color: #87CEEB;
-            padding: 15px 30px;
-            margin: 10px;
-            border: none;
-            border-radius: 20px;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: transform 0.2s, background-color 0.2s;
-        }
-        .btn:active {
-            transform: scale(0.95);
-            background-color: #f0f0f0;
-        }
-        h1 { text-shadow: 1px 1px 2px #000; }
-    </style>
-</head>
+<html lang="ru"><head><meta charset="UTF-8">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+    body { background: #87CEEB; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; color: white; }
+    .btn { background: white; color: #87CEEB; border: none; padding: 20px; margin: 10px; border-radius: 25px; width: 80%; font-weight: bold; font-size: 18px; transition: 0.2s; }
+    .btn:active { background: #0077be; color: white; transform: scale(0.95); }
+</style></head>
 <body>
-    <h1>Привет, я Анжела!</h1>
-    <p>Твой личный гид и переводчик</p>
-    
-    <button class="btn" onclick="sendData('Гид')">🤖 Режим Гида</button>
-    <button class="btn" onclick="sendData('Переводчик')">🌐 Переводчик</button>
-    <button class="btn" onclick="sendData('Локация')">📍 Отправить локацию</button>
-
+    <h1>Анжела</h1>
+    <button class="btn" onclick="send('guide')">🤖 Режим Гида</button>
+    <button class="btn" onclick="send('translator')">🌐 Переводчик</button>
+    <button class="btn" onclick="loc()">📍 Моя локация</button>
     <script>
-        let tg = window.Telegram.WebApp;
-        tg.expand(); // Разворачиваем на весь экран
-
-        function sendData(action) {
-            // Отправляем текст в бота (как будто вы написали это в чате)
-            tg.sendData(action);
-        }
+        let tg = window.Telegram.WebApp; tg.expand();
+        function send(a) { tg.sendData(JSON.stringify({action: a})); }
+        function loc() { navigator.geolocation.getCurrentPosition(p => { tg.sendData(JSON.stringify({location: {lat: p.coords.latitude, lon: p.coords.longitude}})); }); }
     </script>
-</body>
-</html>
-
+</body></html>
