@@ -7,8 +7,8 @@ from gtts import gTTS
 from geopy.geocoders import Nominatim
 
 # --- НАСТРОЙКИ ---
-BOT_TOKEN = "тs"
-GROQ_API_KEY = "gsi"
+BOT_TOKEN = "токен"
+GROQ_API_KEY = "gsk"
 BOT_LINK = "https://t.me/your_guide_pro_bot"
 
 bot = Bot(token=BOT_TOKEN)
@@ -115,13 +115,15 @@ async def start(message: types.Message):
     # Мы используем ключ "greeting" для стикера
     await react(message, welcome_text, sticker_key="greeting")
     
-    # Отправляем кнопки меню
-    kb = ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="📍 Локация")], 
-        [KeyboardButton(text="🌐 Переводчик"), KeyboardButton(text="🤖 Гид")]
-    ], resize_keyboard=True)
-    
-    await message.answer("Выбирай действие:", reply_markup=kb)
+    # Добавьте этот фрагмент в клавиатуру меню:
+from aiogram.types import WebAppInfo
+
+kb = ReplyKeyboardMarkup(keyboard=[
+    [KeyboardButton(text="📍 Локация")], 
+    [KeyboardButton(text="🌐 Переводчик"), KeyboardButton(text="🤖 Гид")],
+    [KeyboardButton(text="📱 Настройки App", web_app=WebAppInfo(url="ВАША_ССЫЛКА_НА_APP"))]
+], resize_keyboard=True)
+   await message.answer("Выбирай действие:", reply_markup=kb)
 
 
 @dp.message(F.text == "🤖 Гид")
@@ -150,7 +152,7 @@ async def handle_voice(message: types.Message):
 
 @dp.message(F.text)
 async def handle_text(message: types.Message):
-    if any(cmd in message.text.lower() for cmd in ["стоп", "выключить", "гид"]):
+    if any(cmd in То есть один код для приложение и бот можно сработает оба for cmd in ["стоп", "выключить", "гид"]):
         await back_to_guide(message)
     else:
         await process_ai_logic(message, message.text)
