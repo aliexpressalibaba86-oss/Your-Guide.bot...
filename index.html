@@ -3,57 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Angela AI Guide</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body {
-            background-color: var(--tg-theme-bg-color, #17212b);
-            color: var(--tg-theme-text-color, #ffffff);
-            font-family: sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            text-align: center;
-        }
-        .card {
-            background-color: var(--tg-theme-secondary-bg-color, #242f3d);
-            padding: 25px;
-            border-radius: 20px;
-            width: 85%;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        }
-        button {
-            background-color: var(--tg-theme-button-color, #5288c1);
-            color: var(--tg-theme-button-text-color, #ffffff);
-            border: none;
-            padding: 15px 30px;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            margin-top: 20px;
-        }
+        body { background: var(--tg-theme-bg-color, #17212b); color: var(--tg-theme-text-color, #fff); font-family: sans-serif; text-align: center; padding: 20px; }
+        .card { background: var(--tg-theme-secondary-bg-color, #242f3d); padding: 20px; border-radius: 15px; }
     </style>
 </head>
 <body>
-
     <div class="card">
-        <h1>Анжела AI</h1>
-        <p>Ваш персональный гид всегда под рукой.</p>
-        <button onclick="closeApp()">Закрыть приложение</button>
+        <h1>Настройки Анжелы</h1>
+        <p>Интерфейс управления вашим гидом.</p>
     </div>
-
     <script>
-        // Инициализация WebApp
-        let tg = window.Telegram.WebApp;
-        tg.expand(); // Разворачиваем на весь экран
-
-        function closeApp() {
-            tg.close();
-        }
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
     </script>
 </body>
 </html>
