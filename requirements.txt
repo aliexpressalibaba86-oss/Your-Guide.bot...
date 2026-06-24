@@ -1,0 +1,7 @@
+aiogram
+openai
+gtts
+aiosqlite
+langdetect
+geopy
+SpeechRecognition
