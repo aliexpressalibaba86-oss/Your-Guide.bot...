@@ -1,40 +1,43 @@
-import asyncio
-import os
-import uuid
-import aiohttp
-import aiosqlite # Используем асинхронную базу
+import sqlite3, asyncio, os, uuid, aiohttp
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, FSInputFile
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, CallbackQuery
 from openai import AsyncOpenAI
 from gtts import gTTS
 from geopy.geocoders import Nominatim
+from aiohttp import web # Добавлено для Render
 
-# --- БЕЗОПАСНОСТЬ: Читаем ключи из переменных среды ---
-# В Render вы добавите эти ключи во вкладку Environment Variables
+# --- НАСТРОЙКИ (Берем из переменных окружения Render) ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+BOT_LINK = "https://t.me/your_guide_pro_bot"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 client = AsyncOpenAI(base_url="https://api.groq.com/openai/v1", api_key=GROQ_API_KEY)
-geolocator = Nominatim(user_agent="angela_ai_pro_bot")
+geolocator = Nominatim(user_agent="angela_ai_bot")
 
-# --- БАЗА ДАННЫХ (Асинхронная) ---
-async def init_db():
-    async with aiosqlite.connect("bot_memory.db") as db:
-        await db.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, name TEXT)")
-        await db.execute("CREATE TABLE IF NOT EXISTS history (user_id INTEGER, role TEXT, content TEXT)")
-        await db.commit()
+# --- ВЕБ-СЕРВЕР ДЛЯ RENDER (чтобы не засыпал) ---
+async def handle(request):
+    return web.Response(text="Bot is running!")
 
-async def save_history(user_id, role, content):
-    async with aiosqlite.connect("bot_memory.db") as db:
-        await db.execute("INSERT INTO history VALUES (?, ?, ?)", (user_id, role, content))
-        await db.commit()
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get('/', handle)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.environ.get("PORT", 8080))
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
 
-async def get_full_history(user_id):
-    async with aiosqlite.connect("bot_memory.db") as db:
-        async with db.execute("SELECT role, content FROM history WHERE user_id=? ORDER BY rowid ASC", (user_id,)) as cursor:
-            rows = await cursor.fetchall()
-            return [{"role": row[0], "content": row[1]} for row in rows]
-            
+# --- ОСТАЛЬНАЯ ЛОГИКА (ваша функция react, process_ai_logic и т.д.) ---
+# (Здесь остается ваш код: init_db, react, process_ai_logic, хендлеры...)
+
+# --- ЗАПУСК ---
+async def main():
+    init_db()
+    await start_web_server() # Запускаем "обманку" для Render
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
