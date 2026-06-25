@@ -10,14 +10,12 @@ from geopy.geocoders import Nominatim
 # --- НАСТРОЙКИ ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-BOT_LINK = "https://t.me/your_guide_pro_bot"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 client = AsyncOpenAI(base_url="https://api.groq.com/openai/v1", api_key=GROQ_API_KEY)
 geolocator = Nominatim(user_agent="angela_ai_bot")
 
-# --- ДНК АНЖЕЛЫ: СТИКЕРЫ ---
 STICKERS = {
     "ready": "CAACAgIAAxkBAAIDv2o19vjx3tz3-mabhpCyVTciD9HUAALCmQACniexSY_z0n_rnfOFPAQ",
     "listening": "CAACAgIAAxkBAAIDG2o1M9O_ctifDP9vIx7pv6yycHEPAAKrogACd4CgSYOLUBFUfUhyPAQ",
@@ -29,7 +27,6 @@ STICKERS = {
 
 user_states = {}
 
-# --- ФУНКЦИИ ---
 async def react(message, text, sticker_key="ready"):
     try: await message.answer_sticker(sticker=STICKERS.get(sticker_key, STICKERS["ready"]))
     except: pass
@@ -48,16 +45,16 @@ async def start(message: types.Message):
         [KeyboardButton(text="Локация 📍"), KeyboardButton(text="Переводчик 🌐")],
         [KeyboardButton(text="Режим Гида 🧭")]
     ], resize_keyboard=True)
-    await react(message, "Привет! Я Анжела, твой гид и учитель. Выбирай функцию!", "ready")
-    await message.answer("Я готова!", reply_markup=kb)
+    await react(message, "Привет! Я снова в строю. Чем могу помочь?", "ready")
+    await message.answer("Выбирай:", reply_markup=kb)
 
 @dp.message(F.text == "Анжела 🤖")
 async def cmd_who(message: types.Message):
-    await react(message, "Я — Анжела, твой персональный ИИ. Я помню наши диалоги и учу тебя языкам.", "wink")
+    await react(message, "Я — Анжела, твой персональный ИИ.", "wink")
 
 @dp.message(F.text == "Локация 📍")
 async def cmd_loc(message: types.Message):
-    await message.answer("Пришли мне геопозицию (скрепка -> Геопозиция), и я расскажу всё об этом месте.")
+    await message.answer("Пришли мне геопозицию, чтобы я рассказала об этом месте.")
 
 @dp.message(F.location)
 async def handle_location(message: types.Message):
@@ -71,35 +68,38 @@ async def cmd_trans(message: types.Message):
     user_states[message.from_user.id] = "lang_select"
     await react(message, "Режим учителя включен! На каком языке будем учиться?", "success")
 
+@dp.message(F.text == "Режим Гида 🧭")
+async def cmd_guide(message: types.Message):
+    await react(message, "Режим гида активирован! Спрашивай о любой стране или городе.", "inspiration")
+
 @dp.message(F.text)
 async def handle_text(message: types.Message):
     uid = message.from_user.id
-    # Логика переводчика
     if user_states.get(uid) == "lang_select":
         user_states[uid] = {"mode": "learning", "lang": message.text}
         await message.answer(f"Отлично, учим {message.text}. Напиши фразу для перевода.")
         return
     if isinstance(user_states.get(uid), dict):
         resp = await client.chat.completions.create(model="llama-3.1-8b-instant",
-            messages=[{"role": "system", "content": f"Ты учитель языка {user_states[uid]['lang']}. Переведи и объясни."},
+            messages=[{"role": "system", "content": f"Ты учитель языка {user_states[uid]['lang']}. Переведи и объясни грамматику."},
                       {"role": "user", "content": message.text}])
         await react(message, resp.choices[0].message.content, "listening")
         return
 
-    # Стандартный ИИ
     resp = await client.chat.completions.create(model="llama-3.1-8b-instant", messages=[{"role": "user", "content": message.text}])
     await react(message, resp.choices[0].message.content, "ready")
 
-# --- ЗАПУСК ---
-async def start_web_server():
+# --- ПРАВИЛЬНЫЙ ЗАПУСК ---
+async def main():
+    # Запускаем веб-сервер и бота одновременно
     app = web.Application()
     app.router.add_get('/', lambda r: web.Response(text="Bot is running"))
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', int(os.environ.get("PORT", 8080)))
     await site.start()
+    
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.run(start_web_server())
-    asyncio.run(dp.start_polling(bot))
-                             
+    asyncio.run(main())
