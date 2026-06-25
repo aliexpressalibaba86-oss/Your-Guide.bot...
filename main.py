@@ -1,15 +1,21 @@
 import logging
 import asyncio
 import sqlite3
+import os
+import sys
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiohttp import web
-import os
 
 # --- КОНФИГУРАЦИЯ ---
 TOKEN = os.getenv("TOKEN")
 PORT = int(os.environ.get("PORT", 10000))
+
+# Критическая проверка токена
+if not TOKEN:
+    print("Ошибка: Переменная TOKEN не найдена в настройках Render!")
+    sys.exit(1)
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -53,7 +59,7 @@ async def handle_sticker(message: types.Message):
     s_id = message.sticker.file_id
     if s_id in REXY_MAP:
         name, reaction = REXY_MAP[s_id]
-        await message.answer(f"[{name}] {reaction}")
+        await message.answer(f"{reaction}") # Убрали [name] для красоты
 
 @dp.message(F.text == "Поделиться 🔗")
 async def share(message: types.Message):
@@ -71,10 +77,13 @@ async def start_server():
     site = web.TCPSite(runner, '0.0.0.0', PORT)
     await site.start()
 
+# --- ЗАПУСК ---
 async def main():
     init_db()
+    # Запускаем сервер и бота одновременно
     await asyncio.gather(start_server(), dp.start_polling(bot))
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     asyncio.run(main())
+    
