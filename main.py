@@ -1,10 +1,9 @@
-import sqlite3, asyncio, os, uuid
+import sqlite3, asyncio, os, uuid, logging
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from openai import AsyncOpenAI
 from gtts import gTTS
-from geopy.geocoders import Nominatim
 from aiohttp import web
 
 # --- НАСТРОЙКИ ---
@@ -15,9 +14,7 @@ BOT_LINK = "https://t.me/your_guide_pro_bot"
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 client = AsyncOpenAI(base_url="https://api.groq.com/openai/v1", api_key=GROQ_API_KEY)
-geolocator = Nominatim(user_agent="angela_ai_bot")
 
-# Обновленный список стикеров (все 7 штук)
 STICKERS = {
     "listening": "CAACAgIAAxkBAAIDG2o1M9O_ctifDP9vIx7pv6yycHEPAAKrogACd4CgSYOLUBFUfUhyPAQ",
     "success": "CAACAgIAAxkBAAIDIGo1NHKkvk9Y_6VzJ8aFmD_ZomUlAAKioQACI1OgSY0FYa7nXYdoPAQ",
@@ -28,32 +25,24 @@ STICKERS = {
     "ready": "CAACAgIAAxkBAAIDv2o19vjx3tz3-mabhpCyVTciD9HUAALCmQACniexSY_z0n_rnfOFPAQ"
 }
 
-# --- ФУНКЦИИ ПАМЯТИ И ДНК ---
+# --- ФУНКЦИИ ---
 def init_db():
     conn = sqlite3.connect("bot_memory.db")
-    conn.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, name TEXT, lang TEXT)")
-    conn.execute("CREATE TABLE IF NOT EXISTS history (user_id INTEGER, role TEXT, content TEXT)")
-    # Умная очистка: храним только последние 10 сообщений
+    conn.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, name TEXT)")
     conn.commit(); conn.close()
 
 async def react(message, text, sticker_key="ready"):
     try: await message.answer_sticker(sticker=STICKERS.get(sticker_key, STICKERS["ready"]))
     except: pass
-    
-    # Генерация голоса
     filename = f"v_{uuid.uuid4()}.mp3"
-    tts = gTTS(text=text[:200], lang='ru') # Ограничение длины для TTS
+    tts = gTTS(text=text[:200], lang='ru')
     tts.save(filename)
-    
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Поделиться ссылкой 🔗", switch_inline_query=f"Попробуй Анжелу: {BOT_LINK}")]
-    ])
-    
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Поделиться 🔗", switch_inline_query=f"Попробуй: {BOT_LINK}")]])
     await message.answer_voice(voice=types.FSInputFile(filename), reply_markup=kb)
     await message.answer(text)
     if os.path.exists(filename): os.remove(filename)
 
-# --- ОСНОВНАЯ ЛОГИКА ---
+# --- ХЕНДЛЕРЫ-КОМАНДЫ (Кнопки) ---
 @dp.message(Command("start"))
 async def start(message: types.Message):
     init_db()
@@ -62,28 +51,40 @@ async def start(message: types.Message):
         [KeyboardButton(text="Локация 📍"), KeyboardButton(text="Режим Гида 🧭")],
         [KeyboardButton(text="Переводчик 🌐"), KeyboardButton(text="Поделиться 🔗")]
     ], resize_keyboard=True)
-    await react(message, "Привет! Я Анжела. Твоя память, твой гид и твой голос. Как тебя зовут?", "ready")
-    await message.answer("Выбирай функцию:", reply_markup=kb)
+    await react(message, "Привет! Я Анжела, твой гид. Что делаем?", "ready")
+    await message.answer("Выбирай:", reply_markup=kb)
 
-@dp.message(F.text == "Поделиться 🔗")
-async def share(message: types.Message):
-    await message.answer(f"Приглашай друзей в наш проект: {BOT_LINK}")
+@dp.message(F.text == "Анжела 🤖")
+async def cmd_angela(message: types.Message):
+    await react(message, "Я здесь! Готова помогать тебе в любой задаче.", "wink")
 
-@dp.message(F.sticker)
-async def handle_sticker_logic(message: types.Message):
-    # Анжела реагирует на стикеры (ДНК поведения)
-    await react(message, "Я чувствую твой настрой! 🌟", "wink")
+@dp.message(F.text == "Режим Гида 🧭")
+async def cmd_guide(message: types.Message):
+    await react(message, "Режим Гида активен. Спрашивай о любом месте!", "guide")
 
+@dp.message(F.text == "Переводчик 🌐")
+async def cmd_translator(message: types.Message):
+    await react(message, "Я переведу любой текст. Просто напиши его.", "success")
+
+# --- ЛОГИКА ОБРАБОТКИ ---
 @dp.message(F.text)
 async def handle_text(message: types.Message):
-    # Логика AI с памятью
-    await react(message, "Я обрабатываю твой запрос, анализирую данные...", "listening")
-    # ... здесь интеграция вашего process_ai_logic ...
+    # Если это не кнопка, отправляем в ИИ
+    if message.text in ["Анжела 🤖", "Режим Гида 🧭", "Переводчик 🌐", "Поделиться 🔗"]: return
+    
+    try:
+        resp = await client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": message.text}]
+        )
+        await react(message, resp.choices[0].message.content, "listening")
+    except Exception as e:
+        await message.answer(f"Ошибка: {e}")
 
 # --- ВЕБ-СЕРВЕР ---
 async def start_web_server():
     app = web.Application()
-    app.router.add_get('/', lambda r: web.Response(text="Angela System Online"))
+    app.router.add_get('/', lambda r: web.Response(text="Bot is Live"))
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', int(os.environ.get("PORT", 8080)))
@@ -94,5 +95,6 @@ async def main():
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     asyncio.run(main())
     
