@@ -12,9 +12,8 @@ from aiohttp import web
 TOKEN = os.getenv("TOKEN")
 PORT = int(os.environ.get("PORT", 10000))
 
-# Критическая проверка токена
 if not TOKEN:
-    print("Ошибка: Переменная TOKEN не найдена в настройках Render!")
+    print("Критическая ошибка: Токен не задан!")
     sys.exit(1)
 
 bot = Bot(token=TOKEN)
@@ -29,15 +28,15 @@ def init_db():
     conn.commit()
     conn.close()
 
-# --- СТИКЕРЫ REXY И ИХ РЕАКЦИИ ---
+# --- ДНК АНЖЕЛЫ: СТИКЕРЫ REXY ---
 REXY_MAP = {
-    "CAACAgIAAxkBAAIDG2o1M9O_ctifDP9vIx7pv6yycHEPAAKrogACd4CgSYOLUBFUfUhyPAQ": ("Rexy_Listening", "Слушаю тебя внимательно, мой друг! Всё записываю. 🎧"),
-    "CAACAgIAAxkBAAIDIGo1NHKkvk9Y_6VzJ8aFmD_ZomUlAAKioQACI1OgSY0FYa7nXYdoPAQ": ("Rexy_Success", "Блестяще! 🎆 Вот это уровень! Ты настоящий профи!"),
-    "CAACAgIAAxkBAAIDImo1NHx2MsgaE3HnDgABUyVLuP3AgQAC5qEAAvjtoEkb8fClstB08jwE": ("Rexy_Warm", "Приятно слышать! Я всегда рядом, если что-то нужно. ✨"),
-    "CAACAgIAAxkBAAIDJGo1NH0xuWPmfKX9fIdpvzcqZSiGAAJPlgACPcSgSRnbnnqhTVfCPAQ": ("Rexy_Guide", "Уже прокладываю маршрут! Это место таит много легенд. 🧭"),
-    "CAACAgIAAxkBAAIDJmo1NH-ZzF7PraI96TLWkgsH1kjDAALvoQACXg2hScYWN2c39JPOPAQ": ("Rexy_Inspiration", "Отличный выбор! Давай сделаем это грандиозно. 🚀"),
-    "CAACAgIAAxkBAAIDKGo1NIBKrSQF18O_yLxGr9jd4-MeAAIRpQAC_QKgSbtGBulSjwzBPAQ": ("Rexy_Wink", "Ха-ха, я оценила! У тебя отличное чувство стиля. 😉"),
-    "CAACAgIAAxkBAAIDv2o19vjx3tz3-mabhpCyVTciD9HUAALCmQACniexSY_z0n_rnfOFPAQ": ("Rexy_Ready", "Система активна. Я готова. Какая у нас сегодня цель? 🛠️")
+    "CAACAgIAAxkBAAIDG2o1M9O_ctifDP9vIx7pv6yycHEPAAKrogACd4CgSYOLUBFUfUhyPAQ": "Слушаю тебя внимательно, мой друг! Всё записываю. 🎧",
+    "CAACAgIAAxkBAAIDIGo1NHKkvk9Y_6VzJ8aFmD_ZomUlAAKioQACI1OgSY0FYa7nXYdoPAQ": "Блестяще! 🎆 Вот это уровень! Ты настоящий профи!",
+    "CAACAgIAAxkBAAIDImo1NHx2MsgaE3HnDgABUyVLuP3AgQAC5qEAAvjtoEkb8fClstB08jwE": "Приятно слышать! Я всегда рядом, если что-то нужно. ✨",
+    "CAACAgIAAxkBAAIDJGo1NH0xuWPmfKX9fIdpvzcqZSiGAAJPlgACPcSgSRnbnnqhTVfCPAQ": "Уже прокладываю маршрут! Это место таит много легенд. 🧭",
+    "CAACAgIAAxkBAAIDJmo1NH-ZzF7PraI96TLWkgsH1kjDAALvoQACXg2hScYWN2c39JPOPAQ": "Отличный выбор! Давай сделаем это грандиозно. 🚀",
+    "CAACAgIAAxkBAAIDKGo1NIBKrSQF18O_yLxGr9jd4-MeAAIRpQAC_QKgSbtGBulSjwzBPAQ": "Ха-ха, я оценила! У тебя отличное чувство стиля. 😉",
+    "CAACAgIAAxkBAAIDv2o19vjx3tz3-mabhpCyVTciD9HUAALCmQACniexSY_z0n_rnfOFPAQ": "Система активна. Я готова. Какая у нас сегодня цель? 🛠️"
 }
 
 # --- КНОПКИ ---
@@ -58,32 +57,29 @@ async def start(message: types.Message):
 async def handle_sticker(message: types.Message):
     s_id = message.sticker.file_id
     if s_id in REXY_MAP:
-        name, reaction = REXY_MAP[s_id]
-        await message.answer(f"{reaction}") # Убрали [name] для красоты
+        await message.answer(REXY_MAP[s_id])
 
 @dp.message(F.text == "Поделиться 🔗")
 async def share(message: types.Message):
     await message.answer("Приглашай друзей в нашу команду: https://t.me/your_guide_pro_bot")
 
-# --- WEB-СЕРВЕР ---
-async def web_handler(request):
-    return web.Response(text="Angela Bot is live!")
+# --- ВЕБ-СЕРВЕР ДЛЯ RENDER ---
+async def start_bot():
+    await dp.start_polling(bot)
 
-async def start_server():
+async def main():
+    init_db()
+    # Запуск веб-сервера (Render требует открытый порт)
     app = web.Application()
-    app.router.add_get('/', web_handler)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', PORT)
     await site.start()
-
-# --- ЗАПУСК ---
-async def main():
-    init_db()
-    # Запускаем сервер и бота одновременно
-    await asyncio.gather(start_server(), dp.start_polling(bot))
+    
+    # Работа бота
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     asyncio.run(main())
-    
+        
