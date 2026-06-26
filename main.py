@@ -5,6 +5,7 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 from openai import AsyncOpenAI
 from gtts import gTTS
 from geopy.geocoders import Nominatim
+from aiohttp import web
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -55,34 +56,35 @@ async def start(message: types.Message):
     await react(message, welcome_text, "ready")
     await message.answer("Выбери режим ниже:", reply_markup=kb)
 
+# --- ХЕНДЛЕРЫ ---
 @dp.message(F.text == "Очистить память 🧹")
 async def clear_memory(message: types.Message):
-    user_data[message.from_user.id]["history"] = []
+    if message.from_user.id in user_data:
+        user_data[message.from_user.id]["history"] = []
     await message.answer("Я всё забыла! Память очищена. ✨")
 
 @dp.message(F.text == "Твой Гид 🧭")
 async def cmd_guide(message: types.Message):
+    if message.from_user.id not in user_data: user_data[message.from_user.id] = {"mode": "friend", "history": [], "name": None}
     user_data[message.from_user.id]["mode"] = "guide"
     await react(message, "Режим Гида включен! Я знаю историю любой точки мира. Что тебя интересует?", "guide")
 
 @dp.message(F.text == "Анжела 🤖")
 async def cmd_angela(message: types.Message):
+    if message.from_user.id not in user_data: user_data[message.from_user.id] = {"mode": "friend", "history": [], "name": None}
     user_data[message.from_user.id]["mode"] = "friend"
     await react(message, "Я здесь, твой мудрый друг! Спрашивай о чем угодно.", "angela")
 
-# --- ЛОГИКА ОБРАБОТКИ ---
 @dp.message(F.text | F.location)
 async def handle_everything(message: types.Message):
     uid = message.from_user.id
     if uid not in user_data: user_data[uid] = {"mode": "friend", "history": [], "name": None}
     
-    # Сохранение имени
     if not user_data[uid]["name"] and message.text and not message.text.startswith("/"):
         user_data[uid]["name"] = message.text
         await react(message, f"Приятно познакомиться, {message.text}! Чем могу помочь сегодня?", "angela")
         return
 
-    # Логика работы
     text = message.location and f"Координаты: {message.location.latitude}, {message.location.longitude}" or message.text
     user_data[uid]["history"].append({"role": "user", "content": text})
     
@@ -95,6 +97,19 @@ async def handle_everything(message: types.Message):
     
     await react(message, reply, user_data[uid]["mode"] if user_data[uid]["mode"] in STICKERS else "ready")
 
+# --- WEB СЕРВЕР ДЛЯ RENDER ---
+async def web_server(request):
+    return web.Response(text="Angela Bot is alive!")
+
+async def main():
+    app = web.Application()
+    app.router.add_get('/', web_server)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', int(os.environ.get("PORT", 8080)))
+    await site.start()
+    await dp.start_polling(bot)
+
 if __name__ == "__main__":
-    asyncio.run(dp.start_polling(bot))
+    asyncio.run(main())
     
