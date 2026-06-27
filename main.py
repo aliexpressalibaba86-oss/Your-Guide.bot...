@@ -37,7 +37,17 @@ async def react(message, text, sticker_key="ready"):
     await message.answer(text)
     if os.path.exists(filename): os.remove(filename)
 
-# --- ПРИВЕТСТВИЕ И РЕЖИМЫ ---
+# --- РАСПОЗНАВАНИЕ ГОЛОСА ---
+async def transcribe_voice(voice_file_id):
+    file = await bot.get_file(voice_file_id)
+    file_path = file.file_path
+    await bot.download_file(file_path, "voice.ogg")
+    audio_file = open("voice.ogg", "rb")
+    # Используем модель Whisper через Groq для быстрого распознавания
+    transcript = await client.audio.transcriptions.create(model="whisper-large-v3", file=audio_file)
+    return transcript.text
+
+# --- ХЕНДЛЕРЫ ---
 @dp.message(Command("start"))
 async def start(message: types.Message):
     user_data[message.from_user.id] = {"mode": "friend", "history": [], "name": None}
@@ -47,57 +57,44 @@ async def start(message: types.Message):
         [KeyboardButton(text="Учитель языка 🎓"), KeyboardButton(text="Поделиться 🔗")],
         [KeyboardButton(text="Очистить память 🧹")]
     ], resize_keyboard=True)
-    
-    welcome_text = (
-        "Привет! Меня зовут Анжела. Я твой персональный ИИ-помощник, гид по миру, профессиональный учитель языков и переводчик. "
-        "Я умею рассказывать истории зданий, переводить фразы и учить языкам в игровом стиле. "
-        "Как тебя зовут?"
-    )
-    await react(message, welcome_text, "ready")
-    await message.answer("Выбери режим ниже:", reply_markup=kb)
+    await react(message, "Привет! Я Анжела. Как тебя зовут?", "ready")
+    await message.answer("Выбери действие:", reply_markup=kb)
 
-# --- ХЕНДЛЕРЫ ---
-@dp.message(F.text == "Очистить память 🧹")
-async def clear_memory(message: types.Message):
-    if message.from_user.id in user_data:
-        user_data[message.from_user.id]["history"] = []
-    await message.answer("Я всё забыла! Память очищена. ✨")
+@dp.message(F.text == "Поделиться 🔗")
+async def cmd_share(message: types.Message):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Выбрать друга и отправить 🚀", switch_inline_query=f"Попробуй этого ИИ-гида: {BOT_LINK}")]
+    ])
+    await message.answer("Нажми кнопку ниже, выбери друга, и я отправлю ему ссылку:", reply_markup=kb)
 
-@dp.message(F.text == "Твой Гид 🧭")
-async def cmd_guide(message: types.Message):
-    if message.from_user.id not in user_data: user_data[message.from_user.id] = {"mode": "friend", "history": [], "name": None}
-    user_data[message.from_user.id]["mode"] = "guide"
-    await react(message, "Режим Гида включен! Я знаю историю любой точки мира. Что тебя интересует?", "guide")
-
-@dp.message(F.text == "Анжела 🤖")
-async def cmd_angela(message: types.Message):
-    if message.from_user.id not in user_data: user_data[message.from_user.id] = {"mode": "friend", "history": [], "name": None}
-    user_data[message.from_user.id]["mode"] = "friend"
-    await react(message, "Я здесь, твой мудрый друг! Спрашивай о чем угодно.", "angela")
+@dp.message(F.voice)
+async def handle_voice(message: types.Message):
+    text = await transcribe_voice(message.voice.file_id)
+    await process_request(message, text)
 
 @dp.message(F.text | F.location)
-async def handle_everything(message: types.Message):
+async def handle_text_or_loc(message: types.Message):
+    text = message.location and f"Мои координаты: {message.location.latitude}, {message.location.longitude}" or message.text
+    await process_request(message, text)
+
+async def process_request(message, text):
     uid = message.from_user.id
     if uid not in user_data: user_data[uid] = {"mode": "friend", "history": [], "name": None}
     
-    if not user_data[uid]["name"] and message.text and not message.text.startswith("/"):
-        user_data[uid]["name"] = message.text
-        await react(message, f"Приятно познакомиться, {message.text}! Чем могу помочь сегодня?", "angela")
+    if not user_data[uid]["name"] and not message.text.startswith("/"):
+        user_data[uid]["name"] = text
+        await react(message, f"Приятно познакомиться, {text}! Чем помочь?", "angela")
         return
 
-    text = message.location and f"Координаты: {message.location.latitude}, {message.location.longitude}" or message.text
     user_data[uid]["history"].append({"role": "user", "content": text})
-    
     resp = await client.chat.completions.create(model="llama-3.1-8b-instant", messages=[
-        {"role": "system", "content": f"Ты Анжела. Режим: {user_data[uid]['mode']}. Имя юзера: {user_data[uid]['name']}."}
+        {"role": "system", "content": f"Ты Анжела. Режим: {user_data[uid]['mode']}."}
     ] + user_data[uid]["history"][-10:])
     
     reply = resp.choices[0].message.content
-    user_data[uid]["history"].append({"role": "assistant", "content": reply})
-    
-    await react(message, reply, user_data[uid]["mode"] if user_data[uid]["mode"] in STICKERS else "ready")
+    await react(message, reply, user_data[uid].get("mode", "ready"))
 
-# --- WEB СЕРВЕР ДЛЯ RENDER ---
+# --- WEB СЕРВЕР ---
 async def web_server(request):
     return web.Response(text="Angela Bot is alive!")
 
@@ -112,4 +109,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-    
