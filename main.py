@@ -30,7 +30,7 @@ user_data = {}
 
 def get_share_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📤 Отправить друзьям", url=f"https://t.me/share/url?url={@your_guide_pro_bot}&text=Привет! Попробуй Анжелу - твоего личного ИИ-помощника:")]
+        [InlineKeyboardButton(text="📤 Отправить друзьям", url=f"https://t.me/share/url?url={BOT_URL}&text=Привет! Попробуй Анжелу - твоего личного ИИ-помощника:")]
     ])
 
 async def react(message, text, sticker_key="ready", lang='ru'):
@@ -113,4 +113,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-    
+        
