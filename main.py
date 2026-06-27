@@ -19,11 +19,13 @@ client = AsyncOpenAI(base_url="https://api.groq.com/openai/v1", api_key=GROQ_API
 geolocator = Nominatim(user_agent="angela_ai_bot")
 
 STICKERS = {
-    "angela": "CAACAgIAAxkBAAIDKGo1NIBKrSQF18O_yLxGr9jd4-MeAAIRpQAC_QKgSbtGBulSjwzBPAQ",
-    "guide": "CAACAgIAAxkBAAIDJmo1NH-ZzF7PraI96TLWkgsH1kjDAALvoQACXg2hScYWN2c39JPOPAQ",
-    "translator": "CAACAgIAAxkBAAIDIGo1NHKkvk9Y_6VzJ8aFmD_ZomUlAAKioQACI1OgSY0FYa7nXYdoPAQ",
-    "teacher": "CAACAgIAAxkBAAIDImo1NHx2MsgaE3HnDgABUyVLuP3AgQAC5qEAAvjtoEkb8fClstB08jwE",
-    "ready": "CAACAgIAAxkBAAIDv2o19vjx3tz3-mabhpCyVTciD9HUAALCmQACniexSY_z0n_rnfOFPAQ"
+    "happy": "CAACAgIAAxkBAAIDG2o1M9O_ctifDP9vIx7pv6yycHEPAAKrogACd4CgSYOLUBFUfUhyPAQ",
+    "neutral": "CAACAgIAAxkBAAIDIGo1NHKkvk9Y_6VzJ8aFmD_ZomUlAAKioQACI1OgSY0FYa7nXYdoPAQ",
+    "thinking": "CAACAgIAAxkBAAIDJGo1NH0xuWPmfKX9fIdpvzcqZSiGAAJPlgACPcSgSRnbnnqhTVfCPAQ",
+    "greeting": "CAACAgIAAxkBAAIDJmo1NH-ZzF7PraI96TLWkgsH1kjDAALvoQACXg2hScYWN2c39JPOPAQ",
+    "success": "CAACAgIAAxkBAAIDKGo1NIBKrSQF18O_yLxGr9jd4-MeAAIRpQAC_QKgSbtGBulSjwzBPAQ",
+    "secret": "CAACAgIAAxkBAAIDImo1NHx2MsgaE3HnDgABUyVLuP3AgQAC5qEAAvjtoEkb8fClstB08jwE",
+    "guide": "CAACAgIAAxkBAAIDv2o19vjx3tz3-mabhpCyVTciD9HUAALCmQACniexSY_z0n_rnfOFPAQ"
 }
 
 user_data = {}
@@ -50,8 +52,8 @@ async def transcribe_voice(voice_file_id):
     transcript = await client.audio.transcriptions.create(model="whisper-large-v3", file=audio_file)
     return transcript.text
 
-# --- ВЕБ-СЕРВЕР ДЛЯ RENDER ---
-async def health_check(request):
+# --- Хэндлер для веб-сервера ---
+async def handle_ping(request):
     return web.Response(text="Bot is running!")
 
 @dp.message(Command("start"))
@@ -75,6 +77,7 @@ async def handle_all(message: types.Message):
     if user_data[uid].get("waiting_name"):
         try: user_data[uid]["lang"] = detect(text)
         except: user_data[uid]["lang"] = "ru"
+        
         user_data[uid]["name"] = text
         user_data[uid]["waiting_name"] = False
         
@@ -84,7 +87,7 @@ async def handle_all(message: types.Message):
             [KeyboardButton(text="Учитель языка 🎓"), KeyboardButton(text="Очистить память 🧹")]
         ], resize_keyboard=True)
         
-        msg = f"Приятно познакомиться, {text}! Я Анжела. Выбери режим." if user_data[uid]["lang"] == 'ru' else f"Nice to meet you, {text}! I am Angela. Choose a mode."
+        msg = f"Приятно познакомиться, {text}! Я Анжела. Выбери режим и я помогу." if user_data[uid]["lang"] == 'ru' else f"Nice to meet you, {text}! I am Angela. Choose a mode."
         await message.answer("Режим выбран.", reply_markup=kb)
         await react(message, msg, "angela", user_data[uid]["lang"])
         return
@@ -92,6 +95,10 @@ async def handle_all(message: types.Message):
     mode = user_data[uid].get("mode", "friend")
     lang = user_data[uid]["lang"]
     
+    if message.location:
+        lat, lon = message.location.latitude, message.location.longitude
+        text = f"Я здесь: {lat}, {lon}. Расскажи историю этого места."
+
     system_content = f"You are Angela, a wise AI assistant. Communicate in {lang}. User name: {user_data[uid]['name']}."
     
     user_data[uid]["history"].append({"role": "user", "content": text})
@@ -105,7 +112,7 @@ async def handle_all(message: types.Message):
 async def main():
     # Запуск веб-сервера
     app = web.Application()
-    app.router.add_get('/', health_check)
+    app.router.add_get('/', handle_ping)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', PORT)
