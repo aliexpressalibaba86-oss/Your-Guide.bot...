@@ -5,7 +5,6 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 from openai import AsyncOpenAI
 from gtts import gTTS
 from geopy.geocoders import Nominatim
-from langdetect import detect
 from aiohttp import web
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -35,12 +34,16 @@ def clean_for_speech(text):
 
 def get_main_kb():
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="📍 Отправить мою локацию", request_location=True)]
+        [KeyboardButton(text="📍 Отправить мою локацию")],
+        [KeyboardButton(text="🔄 Режим Переводчика")],
+        [KeyboardButton(text="🎓 Режим Учителя")],
+        [KeyboardButton(text="🌍 Режим Гида")],
+        [KeyboardButton(text="💬 Режим Друга")]
     ], resize_keyboard=True)
 
 def get_share_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📤 Поделиться с друзьями", url=f"https://t.me/share/url?url={BOT_URL}&text=Привет! Попробуй Анжелу - твоего ИИ-гида, учителя языка и переводчика:")]
+        [InlineKeyboardButton(text="📤 Поделиться с друзьями", url=f"https://t.me/share/url?url={BOT_URL}&text=Попробуй Анжелу - профессиональный ИИ-инструмент:")]
     ])
 
 async def react(message, text, sticker_key="ready", lang='ru'):
@@ -48,7 +51,6 @@ async def react(message, text, sticker_key="ready", lang='ru'):
     filename = f"v_{uuid.uuid4()}.mp3"
     tts = gTTS(text=clean_for_speech(text), lang=lang, slow=False)
     tts.save(filename)
-    # Отправляем только голос и кнопку
     await message.answer_voice(voice=types.FSInputFile(filename), reply_markup=get_share_kb())
     if os.path.exists(filename): os.remove(filename)
 
@@ -61,64 +63,62 @@ async def transcribe_voice(voice_file_id):
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    user_data[message.from_user.id] = {"history": [], "name": None, "waiting_name": True, "lang": "ru", "mode": "friend", "target_lang": None}
-    await react(message, "Ассаламу алейкум! Я Анжела. Я твой гид, переводчик, учитель языка и мудрый друг. Как тебя зовут?", "welcome", "ru")
-    await message.answer("Используй меню для отправки локации:", reply_markup=get_main_kb())
+    user_data[message.from_user.id] = {"waiting_name": True, "mode": "friend", "target_lang": None}
+    await react(message, "Ассаламу алейкум! Я Анжела. Я твой гид, переводчик, учитель и мудрый друг. Как тебя зовут?", "welcome", "ru")
+
+@dp.message(F.text.in_(["🔄 Режим Переводчика", "🎓 Режим Учителя", "🌍 Режим Гида", "💬 Режим Друга"]))
+async def change_mode(message: types.Message):
+    uid = message.from_user.id
+    if "Переводчика" in message.text:
+        user_data[uid]["mode"] = "translator"
+        user_data[uid]["target_lang"] = None
+        await react(message, "Режим переводчика. На какой язык мне переводить?", "translator", "ru")
+    elif "Учителя" in message.text:
+        user_data[uid]["mode"] = "teacher"
+        await react(message, "Режим учителя активирован. Жду твои вопросы по языку.", "teacher", "ru")
+    elif "Гида" in message.text:
+        user_data[uid]["mode"] = "guide"
+        await react(message, "Режим гида. Отправь локацию, я расскажу историю места.", "guide", "ru")
+    else:
+        user_data[uid]["mode"] = "friend"
+        await react(message, "Режим друга. Мы можем пообщаться.", "friend", "ru")
 
 @dp.message(F.location)
 async def handle_location(message: types.Message):
     loc = geolocator.reverse((message.location.latitude, message.location.longitude), language='ru', addressdetails=True)
     addr = loc.raw.get('address', {})
-    full_addr = f"{addr.get('country', '')}, {addr.get('city') or addr.get('town') or addr.get('village', '')}, {addr.get('road', '')} {addr.get('house_number', '')}"
-    text = f"Ты здесь: {full_addr}. Я как профессиональный гид проанализирую историю этого места с идеальной точностью."
-    await handle_text_logic(message, text)
+    full_addr = f"{addr.get('country', '')}, {addr.get('city') or addr.get('town') or addr.get('road', '')}"
+    system = "Ты профессиональный гид. Анализируй локацию и рассказывай историю с безупречной точностью."
+    resp = await client.chat.completions.create(model="llama-3.1-8b-instant", messages=[{"role": "system", "content": system}, {"role": "user", "content": f"Я в {full_addr}"}])
+    await react(message, resp.choices[0].message.content, "guide", "ru")
 
 @dp.message(F.voice | F.text)
 async def handle_text(message: types.Message):
-    text = await transcribe_voice(message.voice.file_id) if message.voice else message.text
-    await handle_text_logic(message, text)
-
-async def handle_text_logic(message: types.Message, text: str):
     uid = message.from_user.id
-    if uid not in user_data: user_data[uid] = {"history": [], "waiting_name": True, "lang": "ru", "mode": "friend"}
+    text = await transcribe_voice(message.voice.file_id) if message.voice else message.text
     
-    if user_data[uid].get("waiting_name"):
+    if user_data.get(uid, {}).get("waiting_name"):
         user_data[uid]["name"] = text
         user_data[uid]["waiting_name"] = False
-        await react(message, f"Приятно познакомиться, {text}! Чем могу помочь?", "angela", "ru")
+        await react(message, f"Приятно познакомиться, {text}! Выбери режим в меню.", "angela", "ru")
+        await message.answer("Выбери режим:", reply_markup=get_main_kb())
         return
 
-    text_lower = text.lower()
-    if "учи" in text_lower or "lesson" in text_lower: mode = "teacher"
-    elif "перевод" in text_lower or "translate" in text_lower:
+    mode = user_data[uid].get("mode", "friend")
+    
+    if mode == "translator":
         if not user_data[uid].get("target_lang"):
-            await react(message, "Я готова перевести. На какой язык мне переводить?", "translator", "ru")
-            user_data[uid]["target_lang"] = "waiting"
+            user_data[uid]["target_lang"] = text
+            await react(message, f"Принято. Перевожу на {text}. Пиши текст.", "translator", "ru")
             return
-        mode = "translator"
-    elif "гид" in text_lower or "путешеств" in text_lower: mode = "guide"
-    else: mode = "friend"
+        system = f"Переведи строго на {user_data[uid]['target_lang']}. НИКАКИХ КОММЕНТАРИЕВ, ТОЛЬКО ПЕРЕВОД."
+    elif mode == "teacher":
+        system = "Ты строгий учитель языка. Исправляй ошибки, объясняй правила. Без лишней болтовни."
+    else:
+        system = "Ты Анжела, мудрый друг. Отвечай кратко и с теплом."
 
-    if user_data[uid].get("target_lang") == "waiting":
-        user_data[uid]["target_lang"] = text
-        await react(message, f"Поняла! Буду переводить на {text}. Что именно нужно перевести?", "translator", "ru")
-        return
-
-    system_content = {
-        "teacher": "Ты профессиональный учитель. Будь игровым и мотивирующим. Хвали за успехи.",
-        "translator": f"Ты идеальный лингвист. Переводи строго на {user_data[uid].get('target_lang', 'английский')}. Твой голос как у носителя.",
-        "guide": "Ты элитный гид. Рассказывай историю и архитектуру с безупречной точностью.",
-        "friend": "Ты Анжела, мудрый друг. Отвечай с юмором и теплом."
-    }.get(mode, "Ты Анжела, универсальный помощник.")
-
-    user_data[uid]["history"].append({"role": "user", "content": text})
-    resp = await client.chat.completions.create(model="llama-3.1-8b-instant", 
-        messages=[{"role": "system", "content": system_content}] + user_data[uid]["history"][-10:])
-    
-    reply = resp.choices[0].message.content
-    user_data[uid]["history"].append({"role": "assistant", "content": reply})
-    
-    await react(message, reply, mode, user_data[uid].get("lang", "ru"))
+    resp = await client.chat.completions.create(model="llama-3.1-8b-instant", messages=[{"role": "system", "content": system}, {"role": "user", "content": text}])
+    await react(message, resp.choices[0].message.content, mode, "ru")
 
 async def main():
     app = web.Application()
@@ -131,3 +131,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+         
