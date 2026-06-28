@@ -41,7 +41,7 @@ def get_main_kb():
 
 def get_share_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📤 Поделиться с друзьями", url=f"https://t.me/share/url?url={BOT_URL}&text=Привет! Попробуй Анжелу - твоего ИИ-гида, учителя и переводчика:")]
+        [InlineKeyboardButton(text="📤 Поделиться с друзьями", url=f"https://t.me/share/url?url={BOT_URL}&text=Привет! Попробуй Анжелу - твоего ИИ-гида, учителя языка и переводчика:")]
     ])
 
 async def react(message, text, sticker_key="ready", lang='ru', reply_markup=None):
@@ -66,7 +66,7 @@ async def transcribe_voice(voice_file_id):
 @dp.message(Command("start"))
 async def start(message: types.Message):
     user_data[message.from_user.id] = {"history": [], "name": None, "waiting_name": True, "lang": "ru", "mode": "friend", "target_lang": None}
-    await react(message, "Ассаламу алейкум! Я Анжела. Я твой гид, переводчик, учитель и мудрый друг. Как тебя зовут?", "welcome", "ru", reply_markup=None)
+    await react(message, "Ассаламу алейкум! Я Анжела. Я твой гид, переводчик, учитель языка и мудрый друг. Как тебя зовут?", "welcome", "ru", reply_markup=None)
 
 @dp.message(F.text == "🧹 Очистить память")
 async def clear_memory(message: types.Message):
