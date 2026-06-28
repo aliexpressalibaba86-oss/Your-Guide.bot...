@@ -35,8 +35,7 @@ def clean_for_speech(text):
 
 def get_main_kb():
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="📍 Отправить мою локацию", request_location=True)],
-        [KeyboardButton(text="🧹 Очистить память")]
+        [KeyboardButton(text="📍 Отправить мою локацию", request_location=True)]
     ], resize_keyboard=True)
 
 def get_share_kb():
@@ -44,16 +43,13 @@ def get_share_kb():
         [InlineKeyboardButton(text="📤 Поделиться с друзьями", url=f"https://t.me/share/url?url={BOT_URL}&text=Привет! Попробуй Анжелу - твоего ИИ-гида, учителя языка и переводчика:")]
     ])
 
-async def react(message, text, sticker_key="ready", lang='ru', reply_markup=None):
+async def react(message, text, sticker_key="ready", lang='ru'):
     await message.answer_sticker(sticker=STICKERS.get(sticker_key, STICKERS["ready"]))
     filename = f"v_{uuid.uuid4()}.mp3"
     tts = gTTS(text=clean_for_speech(text), lang=lang, slow=False)
     tts.save(filename)
-    await message.answer_voice(voice=types.FSInputFile(filename))
-    
-    # Объединяем передаваемую клавиатуру (Reply) с Inline-кнопкой поделиться
-    await message.answer(text, reply_markup=reply_markup or get_share_kb())
-    # Если передана inline_markup, она будет поверх, если нет — используем кнопку поделиться
+    # Отправляем только голос и кнопку
+    await message.answer_voice(voice=types.FSInputFile(filename), reply_markup=get_share_kb())
     if os.path.exists(filename): os.remove(filename)
 
 async def transcribe_voice(voice_file_id):
@@ -66,14 +62,8 @@ async def transcribe_voice(voice_file_id):
 @dp.message(Command("start"))
 async def start(message: types.Message):
     user_data[message.from_user.id] = {"history": [], "name": None, "waiting_name": True, "lang": "ru", "mode": "friend", "target_lang": None}
-    await react(message, "Ассаламу алейкум! Я Анжела. Я твой гид, переводчик, учитель языка и мудрый друг. Как тебя зовут?", "welcome", "ru", reply_markup=None)
-
-@dp.message(F.text == "🧹 Очистить память")
-async def clear_memory(message: types.Message):
-    uid = message.from_user.id
-    user_data[uid]["history"] = []
-    # При очистке показываем главное меню (Reply)
-    await react(message, "Память очищена!", "ready", user_data[uid].get("lang", "ru"), reply_markup=get_main_kb())
+    await react(message, "Ассаламу алейкум! Я Анжела. Я твой гид, переводчик, учитель языка и мудрый друг. Как тебя зовут?", "welcome", "ru")
+    await message.answer("Используй меню для отправки локации:", reply_markup=get_main_kb())
 
 @dp.message(F.location)
 async def handle_location(message: types.Message):
@@ -95,14 +85,14 @@ async def handle_text_logic(message: types.Message, text: str):
     if user_data[uid].get("waiting_name"):
         user_data[uid]["name"] = text
         user_data[uid]["waiting_name"] = False
-        await react(message, f"Приятно познакомиться, {text}! Чем могу помочь?", "angela", "ru", reply_markup=get_main_kb())
+        await react(message, f"Приятно познакомиться, {text}! Чем могу помочь?", "angela", "ru")
         return
 
     text_lower = text.lower()
     if "учи" in text_lower or "lesson" in text_lower: mode = "teacher"
     elif "перевод" in text_lower or "translate" in text_lower:
         if not user_data[uid].get("target_lang"):
-            await message.answer("Я готова перевести. На какой язык мне переводить?")
+            await react(message, "Я готова перевести. На какой язык мне переводить?", "translator", "ru")
             user_data[uid]["target_lang"] = "waiting"
             return
         mode = "translator"
@@ -111,7 +101,7 @@ async def handle_text_logic(message: types.Message, text: str):
 
     if user_data[uid].get("target_lang") == "waiting":
         user_data[uid]["target_lang"] = text
-        await message.answer(f"Поняла! Буду переводить на {text}. Что именно нужно перевести?")
+        await react(message, f"Поняла! Буду переводить на {text}. Что именно нужно перевести?", "translator", "ru")
         return
 
     system_content = {
@@ -128,8 +118,7 @@ async def handle_text_logic(message: types.Message, text: str):
     reply = resp.choices[0].message.content
     user_data[uid]["history"].append({"role": "assistant", "content": reply})
     
-    # Теперь при каждом ответе вызывается react, который внутри использует get_share_kb()
-    await react(message, reply, mode, user_data[uid].get("lang", "ru"), reply_markup=get_main_kb())
+    await react(message, reply, mode, user_data[uid].get("lang", "ru"))
 
 async def main():
     app = web.Application()
@@ -142,4 +131,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-    
