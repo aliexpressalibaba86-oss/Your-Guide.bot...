@@ -5,3 +5,8 @@ aiosqlite
 langdetect
 geopy
 SpeechRecognition
+groq
+moviepy
+opencv-python
+pillow
+aiohttp
