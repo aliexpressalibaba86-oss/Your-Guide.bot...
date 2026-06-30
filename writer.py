@@ -5,7 +5,8 @@ async def generate_script(niche, api_key):
     prompt = f"Напиши короткий сценарий для YouTube Shorts про {niche}. Верни ответ в JSON: {{'title': '...', 'text': '...', 'prompts': ['промпт1', 'промпт2']}}"
     completion = client.chat.completions.create(
         messages=[{"role": "user", "content": prompt}],
-        model="llama-3.1-70b-versatile"
+        model=model="llama-3.3-70b-versatile"
+    
         
     )
     return completion.choices[0].message.content
