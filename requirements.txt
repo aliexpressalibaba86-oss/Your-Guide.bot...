@@ -1,12 +1,3 @@
 aiogram
-openai
-gtts
-aiosqlite
-langdetect
-geopy
-SpeechRecognition
-groq
-moviepy
-opencv-python
-pillow
 aiohttp
+groq
