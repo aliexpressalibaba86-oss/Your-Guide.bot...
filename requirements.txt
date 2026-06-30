@@ -1,6 +1,8 @@
 aiogram
 aiohttp
 groq
-Pillow
 moviepy
+gTTS
+Pillow
+
 
