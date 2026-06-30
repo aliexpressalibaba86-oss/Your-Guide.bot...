@@ -1,18 +1,22 @@
 import os
+import sys
 import asyncio
 import logging
-from aiogram import Bot, Dispatcher, F
+from aiogram import Bot, Dispatcher, types
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
 
-# Импорт ваших модулей
+# ФИКС ОШИБКИ ИМПОРТА: Добавляем текущую папку в путь поиска
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# Теперь модули точно найдутся
 from modules.writer import generate_script
 from modules.generator import create_frames
 from modules.editor import assemble_video
 
-# 1. Загрузка конфигурации из переменных окружения (безопасный способ)
+# Инициализация
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY") # Ваш ключ GSK
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -24,7 +28,7 @@ async def run_pipeline(niche):
     final_video = await assemble_video(images)
     return final_video
 
-@dp.message(F.text)
+@dp.message() # Обработка любого текстового сообщения
 async def handle_message(message: types.Message):
     await message.answer("🔍 Запуск конвейера: Анализ и генерация...")
     try:
@@ -34,10 +38,10 @@ async def handle_message(message: types.Message):
     except Exception as e:
         await message.answer(f"❌ Ошибка в конвейере: {str(e)}")
 
-# 2. Веб-сервер для Render
+# Веб-сервер
 async def on_startup(bot: Bot):
-    # При старте говорим Телеграму, куда слать сообщения
-    await bot.set_webhook(f"{os.getenv('RENDER_EXTERNAL_URL')}/webhook")
+    url = os.getenv("RENDER_EXTERNAL_URL")
+    await bot.set_webhook(f"{url}/webhook")
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
@@ -47,6 +51,6 @@ if __name__ == "__main__":
     setup_application(app, dp, bot=bot)
     app.on_startup.append(lambda app: on_startup(bot))
     
-    # Render требует порт 10000
+    # Запуск
     web.run_app(app, host="0.0.0.0", port=10000)
-  
+    
